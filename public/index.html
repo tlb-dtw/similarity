@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Clustering SERP SEO</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <div class="shell">
+        <header class="header">
+          <div>
+            <h1>Clustering SERP SEO</h1>
+            <p>
+              Charge un CSV de mots-clés, entre ta clé Serper, règle le seuil de
+              similarité, puis récupère les clusters à utiliser comme pages cibles.
+            </p>
+          </div>
+        </header>
+
+        <section class="panel controls" aria-label="Paramètres de l'analyse">
+          <div class="field">
+            <label for="apiKey">Clé API Serper</label>
+            <input id="apiKey" type="password" placeholder="X-API-KEY" autocomplete="off" />
+            <span class="hint">
+              La clé est envoyée uniquement à la fonction serveur Vercel pendant
+              l'analyse.
+            </span>
+          </div>
+
+          <div class="field">
+            <label for="csv">CSV mots-clés</label>
+            <div class="file-input">
+              <input id="csv" type="file" accept=".csv,text/csv" />
+              <div class="hint">
+                Colonnes détectées automatiquement : keyword, mot-clé, requête,
+                volume.
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="row">
+              <label for="threshold">Seuil de similarité</label>
+              <strong id="thresholdValue">40%</strong>
+            </div>
+            <input id="threshold" type="range" min="10" max="100" step="5" value="40" />
+            <span class="hint">Par défaut 40% : au moins 4 URLs communes dans le top 10.</span>
+          </div>
+
+          <div class="field">
+            <label>Pays et langue</label>
+            <select disabled>
+              <option>Google France / français / top 10</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button id="runButton" class="primary" disabled>Lancer l'analyse</button>
+            <button id="exportButton" class="secondary" disabled>Export CSV</button>
+          </div>
+
+          <p id="fileInfo" class="hint"></p>
+          <p id="status" class="hint"></p>
+          <p id="error" class="error"></p>
+        </section>
+
+        <section class="panel results" aria-label="Résultats">
+          <div class="summary">
+            <div class="metric">
+              <span>Mots-clés</span>
+              <strong id="keywordCount">0</strong>
+            </div>
+            <div class="metric">
+              <span>Volume CSV</span>
+              <strong id="csvVolume">0</strong>
+            </div>
+            <div class="metric">
+              <span>Clusters</span>
+              <strong id="clusterCount">0</strong>
+            </div>
+            <div class="metric">
+              <span>Mots-clés classés</span>
+              <strong id="clusteredCount">0</strong>
+            </div>
+          </div>
+
+          <div class="progress">
+            <div class="progress-bar">
+              <span id="progressFill"></span>
+            </div>
+            <div id="progressText" class="status">En attente d'un CSV et d'une clé API.</div>
+          </div>
+
+          <div id="tableWrap" class="table-wrap hidden">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mot-clé principal</th>
+                  <th>Volume</th>
+                  <th>Nb mots-clés</th>
+                  <th>Volume cumulé</th>
+                  <th>Ensemble des mots-clés du cluster</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody"></tbody>
+            </table>
+          </div>
+
+          <div id="emptyState" class="empty">
+            <div>
+              <strong>Aucun cluster calculé pour le moment</strong>
+              <span>
+                Le résultat final reprend les colonnes demandées : mot-clé
+                principal, volume, nombre de mots-clés, volume cumulé, mots-clés
+                triés par proximité.
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script src="/script.js"></script>
+  </body>
+</html>

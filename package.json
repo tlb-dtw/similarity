@@ -1,0 +1,9 @@
+{
+  "name": "serp-similarity-tool",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "node -e \"console.log('Static app: public directory is the deployment output')\""
+  }
+}
