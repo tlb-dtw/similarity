@@ -1,0 +1,9 @@
+{
+  "name": "serp-similarity-tool",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo Static app: no build step required"
+  }
+}
