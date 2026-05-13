@@ -1,4 +1,9 @@
 const SERPER_ENDPOINT = "https://google.serper.dev/search";
+const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function normalizeUrl(rawUrl) {
   try {
@@ -27,37 +32,50 @@ function cleanVolume(value) {
 }
 
 async function fetchSerp(apiKey, input, options) {
-  const response = await fetch(SERPER_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "X-API-KEY": apiKey,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      q: input.keyword,
-      gl: options.gl,
-      hl: options.hl,
-      num: options.topN
-    })
-  });
+  const maxAttempts = options.maxAttempts || 3;
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Serper ${response.status}: ${detail.slice(0, 180)}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(SERPER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        q: input.keyword,
+        gl: options.gl,
+        hl: options.hl,
+        num: options.topN
+      })
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      const message = `Serper ${response.status}: ${detail.slice(0, 180)}`;
+
+      if (attempt < maxAttempts && RETRYABLE_STATUSES.has(response.status)) {
+        await sleep(600 * attempt);
+        continue;
+      }
+
+      throw new Error(message);
+    }
+
+    const payload = await response.json();
+    const serp = (payload.organic || [])
+      .filter((result) => result.link)
+      .slice(0, options.topN)
+      .map((result, index) => ({
+        position: result.position || index + 1,
+        title: result.title || "",
+        link: result.link || "",
+        normalizedUrl: normalizeUrl(result.link || "")
+      }));
+
+    return { ...input, serp };
   }
 
-  const payload = await response.json();
-  const serp = (payload.organic || [])
-    .filter((result) => result.link)
-    .slice(0, options.topN)
-    .map((result, index) => ({
-      position: result.position || index + 1,
-      title: result.title || "",
-      link: result.link || "",
-      normalizedUrl: normalizeUrl(result.link || "")
-    }));
-
-  return { ...input, serp };
+  throw new Error("Serper: échec après plusieurs tentatives.");
 }
 
 async function fetchSerpsInBatches(apiKey, keywords, options) {
@@ -211,7 +229,8 @@ module.exports = async function handler(request, response) {
       gl: body.gl || "fr",
       hl: body.hl || "fr",
       topN,
-      concurrency: 5
+      concurrency: 3,
+      maxAttempts: 3
     });
 
     response.status(200).json({

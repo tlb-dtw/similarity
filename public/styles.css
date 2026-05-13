@@ -275,6 +275,42 @@ td {
   line-height: 1.45;
 }
 
+.error-details {
+  border-top: 1px solid var(--line);
+  padding: 18px;
+  background: #fffafa;
+}
+
+.error-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.error-details-header span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.error-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 280px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid #f1d2cd;
+  font-size: 13px;
+}
+
+.error-row span {
+  color: var(--error);
+}
+
+.muted-row {
+  color: var(--muted);
+}
+
 .hidden {
   display: none;
 }
@@ -304,5 +340,9 @@ td {
 
   .metric {
     border-right: 0;
+  }
+
+  .error-row {
+    grid-template-columns: 1fr;
   }
 }

@@ -22,7 +22,10 @@ const elements = {
   progressText: document.querySelector("#progressText"),
   tableWrap: document.querySelector("#tableWrap"),
   resultsBody: document.querySelector("#resultsBody"),
-  emptyState: document.querySelector("#emptyState")
+  emptyState: document.querySelector("#emptyState"),
+  errorDetails: document.querySelector("#errorDetails"),
+  errorDetailsCount: document.querySelector("#errorDetailsCount"),
+  errorDetailsList: document.querySelector("#errorDetailsList")
 };
 
 const keywordColumnHints = ["keyword", "mot-clé", "mot clé", "motcle", "query", "requête"];
@@ -193,6 +196,7 @@ function updateUi() {
       : "En attente d'un CSV et d'une clé API.";
 
   renderResults();
+  renderErrorDetails();
 }
 
 function renderResults() {
@@ -224,6 +228,46 @@ function renderResults() {
       </tr>`;
     })
     .join("");
+}
+
+function simplifySerperMessage(message) {
+  const text = String(message || "");
+
+  if (text.includes("429")) return "Limite de débit ou quota Serper atteint";
+  if (text.includes("401") || text.includes("403")) return "Clé API refusée ou non autorisée";
+  if (text.includes("402")) return "Crédits Serper insuffisants";
+  if (text.includes("500") || text.includes("502") || text.includes("503") || text.includes("504")) {
+    return "Erreur temporaire côté Serper";
+  }
+
+  return text;
+}
+
+function renderErrorDetails() {
+  if (!state.result || state.result.errors.length === 0) {
+    elements.errorDetails.classList.add("hidden");
+    elements.errorDetailsList.innerHTML = "";
+    elements.errorDetailsCount.textContent = "";
+    return;
+  }
+
+  elements.errorDetails.classList.remove("hidden");
+  elements.errorDetailsCount.textContent = `${state.result.errors.length} mot(s)-clé(s) non récupéré(s)`;
+  elements.errorDetailsList.innerHTML = state.result.errors
+    .slice(0, 30)
+    .map(
+      (error) => `<div class="error-row">
+        <strong>${escapeHtml(error.keyword)}</strong>
+        <span>${escapeHtml(simplifySerperMessage(error.message))}</span>
+      </div>`
+    )
+    .join("");
+
+  if (state.result.errors.length > 30) {
+    elements.errorDetailsList.innerHTML += `<div class="error-row muted-row">Et ${
+      state.result.errors.length - 30
+    } erreur(s) supplémentaire(s)...</div>`;
+  }
 }
 
 async function handleFile(file) {
