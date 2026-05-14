@@ -47,9 +47,10 @@ Puis ouvrir l'URL locale indiquée par Vercel.
 
 La clé Serper est entrée par l'utilisateur dans l'UI et transmise à la route serveur uniquement pendant l'analyse.
 
-Note : pour environ 400 mots-clés, le traitement fait environ 400 appels Serper. Selon le plan Vercel, il peut être nécessaire d'augmenter la durée maximale des fonctions ou de traiter le fichier par lots.
+Note : les gros fichiers sont traités par lots depuis l'interface afin d'éviter qu'une seule fonction Vercel porte toute l'analyse. Le volume réellement possible dépend surtout des crédits Serper disponibles et des limites du plan Vercel.
 
 ## Structure Vercel
 
 - `public/` contient l'interface statique servie par Vercel.
 - `api/analyze.js` contient la fonction serverless qui appelle Serper.
+- `api/serps.js` récupère les SERP par lots pour les gros fichiers.

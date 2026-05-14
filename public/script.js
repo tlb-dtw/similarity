@@ -1,7 +1,9 @@
-const state = {
+﻿const state = {
   keywords: [],
   result: null,
-  loading: false
+  loading: false,
+  progress: 0,
+  progressText: ""
 };
 
 const elements = {
@@ -28,7 +30,7 @@ const elements = {
   errorDetailsList: document.querySelector("#errorDetailsList")
 };
 
-const keywordColumnHints = ["keyword", "mot-clé", "mot clé", "motcle", "query", "requête"];
+const keywordColumnHints = ["keyword", "mot-clÃ©", "mot clÃ©", "motcle", "query", "requÃªte"];
 const volumeColumnHints = ["volume", "search volume", "vol", "recherches"];
 
 function formatNumber(value) {
@@ -123,11 +125,11 @@ function findColumn(headers, hints) {
 
 function unparseCsv(rows) {
   const headers = [
-    "Mot-clé principal",
+    "Mot-clÃ© principal",
     "Volume",
-    "Nombre de mots-clés",
-    "Volume cumulé",
-    "Mots-clés du cluster"
+    "Nombre de mots-clÃ©s",
+    "Volume cumulÃ©",
+    "Mots-clÃ©s du cluster"
   ];
   const lines = [headers, ...rows].map((row) =>
     row
@@ -171,6 +173,78 @@ function downloadCsv() {
   URL.revokeObjectURL(url);
 }
 
+function sharedUrlCount(a, b) {
+  const aUrls = new Set(a.serp.map((result) => result.normalizedUrl));
+  return b.serp.reduce(
+    (count, result) => count + (aUrls.has(result.normalizedUrl) ? 1 : 0),
+    0
+  );
+}
+
+function buildSeoClusters(serps, threshold, topN) {
+  const candidates = [...serps]
+    .filter((item) => item.serp.length > 0)
+    .sort((a, b) => b.volume - a.volume || a.keyword.localeCompare(b.keyword));
+  const assigned = new Set();
+  const clusters = [];
+
+  for (const main of candidates) {
+    if (assigned.has(main.keyword)) continue;
+
+    const secondaryKeywords = [];
+
+    for (const candidate of candidates) {
+      if (candidate.keyword === main.keyword || assigned.has(candidate.keyword)) continue;
+
+      const sharedUrls = sharedUrlCount(main, candidate);
+      const similarity = sharedUrls / topN;
+
+      if (similarity >= threshold) {
+        secondaryKeywords.push({
+          keyword: candidate.keyword,
+          volume: candidate.volume,
+          similarity,
+          sharedUrls
+        });
+      }
+    }
+
+    const keywords = [
+      {
+        keyword: main.keyword,
+        volume: main.volume,
+        similarity: 1,
+        sharedUrls: topN
+      },
+      ...secondaryKeywords.sort(
+        (a, b) =>
+          b.similarity - a.similarity ||
+          b.volume - a.volume ||
+          a.keyword.localeCompare(b.keyword)
+      )
+    ];
+
+    for (const keyword of keywords) {
+      assigned.add(keyword.keyword);
+    }
+
+    clusters.push({
+      mainKeyword: main.keyword,
+      mainVolume: main.volume,
+      keywordCount: keywords.length,
+      totalVolume: keywords.reduce((sum, keyword) => sum + keyword.volume, 0),
+      keywords
+    });
+  }
+
+  return clusters.sort(
+    (a, b) =>
+      b.totalVolume - a.totalVolume ||
+      b.mainVolume - a.mainVolume ||
+      a.mainKeyword.localeCompare(b.mainKeyword)
+  );
+}
+
 function updateUi() {
   const totalVolume = state.keywords.reduce((sum, keyword) => sum + keyword.volume, 0);
   const clusterCount = state.result ? state.result.clusters.length : 0;
@@ -187,13 +261,19 @@ function updateUi() {
     state.loading || !elements.apiKey.value.trim() || state.keywords.length === 0;
   elements.exportButton.disabled = !state.result || state.result.clusters.length === 0;
 
-  const progress = state.loading ? 55 : state.result ? 100 : state.keywords.length > 0 ? 20 : 0;
+  const progress = state.loading
+    ? state.progress
+    : state.result
+      ? 100
+      : state.keywords.length > 0
+        ? 20
+        : 0;
   elements.progressFill.style.width = `${progress}%`;
   elements.progressText.textContent = state.loading
-    ? "Analyse en cours. Pour 400 mots-clés, cela peut prendre un peu de temps côté API."
+    ? state.progressText || "Analyse en cours..."
     : state.result
-      ? `${state.result.serpCount} SERP récupérées. ${state.result.errors.length} erreurs.`
-      : "En attente d'un CSV et d'une clé API.";
+      ? `${state.result.serpCount} SERP rÃ©cupÃ©rÃ©es. ${state.result.errors.length} erreurs.`
+      : "En attente d'un CSV et d'une clÃ© API.";
 
   renderResults();
   renderErrorDetails();
@@ -233,11 +313,11 @@ function renderResults() {
 function simplifySerperMessage(message) {
   const text = String(message || "");
 
-  if (text.includes("429")) return "Limite de débit ou quota Serper atteint";
-  if (text.includes("401") || text.includes("403")) return "Clé API refusée ou non autorisée";
-  if (text.includes("402")) return "Crédits Serper insuffisants";
+  if (text.includes("429")) return "Limite de dÃ©bit ou quota Serper atteint";
+  if (text.includes("401") || text.includes("403")) return "ClÃ© API refusÃ©e ou non autorisÃ©e";
+  if (text.includes("402")) return "CrÃ©dits Serper insuffisants";
   if (text.includes("500") || text.includes("502") || text.includes("503") || text.includes("504")) {
-    return "Erreur temporaire côté Serper";
+    return "Erreur temporaire cÃ´tÃ© Serper";
   }
 
   return text;
@@ -252,7 +332,7 @@ function renderErrorDetails() {
   }
 
   elements.errorDetails.classList.remove("hidden");
-  elements.errorDetailsCount.textContent = `${state.result.errors.length} mot(s)-clé(s) non récupéré(s)`;
+  elements.errorDetailsCount.textContent = `${state.result.errors.length} mot(s)-clÃ©(s) non rÃ©cupÃ©rÃ©(s)`;
   elements.errorDetailsList.innerHTML = state.result.errors
     .slice(0, 30)
     .map(
@@ -266,7 +346,7 @@ function renderErrorDetails() {
   if (state.result.errors.length > 30) {
     elements.errorDetailsList.innerHTML += `<div class="error-row muted-row">Et ${
       state.result.errors.length - 30
-    } erreur(s) supplémentaire(s)...</div>`;
+    } erreur(s) supplÃ©mentaire(s)...</div>`;
   }
 }
 
@@ -282,7 +362,7 @@ async function handleFile(file) {
   const headers = rows.shift() || [];
 
   if (headers.length === 0) {
-    elements.error.textContent = "Le CSV doit contenir une ligne d'en-têtes.";
+    elements.error.textContent = "Le CSV doit contenir une ligne d'en-tÃªtes.";
     state.keywords = [];
     updateUi();
     return;
@@ -300,50 +380,77 @@ async function handleFile(file) {
     }))
     .filter((row) => row.keyword);
 
-  elements.status.textContent = `${state.keywords.length} mots-clés chargés depuis les colonnes "${keywordColumn}" et "${volumeColumn}".`;
+  elements.status.textContent = `${state.keywords.length} mots-clÃ©s chargÃ©s depuis les colonnes "${keywordColumn}" et "${volumeColumn}".`;
   updateUi();
 }
 
 async function runAnalysis() {
   state.loading = true;
   state.result = null;
+  state.progress = 5;
+  state.progressText = "Preparation de l'analyse...";
   elements.error.textContent = "";
-  elements.status.textContent = "Récupération des SERP Google FR via Serper...";
+  elements.status.textContent = "Recuperation des SERP Google FR via Serper...";
   updateUi();
 
   try {
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        apiKey: elements.apiKey.value,
-        keywords: state.keywords,
-        threshold: Number(elements.threshold.value) / 100,
-        gl: "fr",
-        hl: "fr",
-        topN: 10
-      })
-    });
-    const payload = await response.json();
+    const batchSize = 40;
+    const allSerps = [];
+    const allErrors = [];
+    const totalBatches = Math.ceil(state.keywords.length / batchSize);
 
-    if (!response.ok) {
-      throw new Error(payload.message || "Erreur pendant l'analyse.");
+    for (let index = 0; index < totalBatches; index += 1) {
+      const start = index * batchSize;
+      const batch = state.keywords.slice(start, start + batchSize);
+      state.progress = Math.max(8, Math.round((index / totalBatches) * 85));
+      state.progressText = `Lot ${index + 1}/${totalBatches} : recuperation de ${batch.length} SERP...`;
+      elements.status.textContent = state.progressText;
+      updateUi();
+
+      const response = await fetch("/api/serps", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          apiKey: elements.apiKey.value,
+          keywords: batch,
+          gl: "fr",
+          hl: "fr",
+          topN: 10
+        })
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.message || "Erreur pendant la recuperation SERP.");
+      }
+
+      allSerps.push(...payload.serps);
+      allErrors.push(...payload.errors);
     }
 
-    state.result = payload;
-    elements.status.textContent = "Analyse terminée.";
+    state.progress = 92;
+    state.progressText = "Calcul des similarites et creation des clusters...";
+    updateUi();
+
+    state.result = {
+      clusters: buildSeoClusters(allSerps, Number(elements.threshold.value) / 100, 10),
+      serpCount: allSerps.filter((item) => item.serp.length > 0).length,
+      errors: allErrors
+    };
+    elements.status.textContent = "Analyse terminee.";
   } catch (error) {
     elements.error.textContent =
       error instanceof Error ? error.message : "Erreur pendant l'analyse.";
     elements.status.textContent = "";
   } finally {
     state.loading = false;
+    state.progress = 0;
+    state.progressText = "";
     updateUi();
   }
 }
-
 elements.csv.addEventListener("change", (event) => handleFile(event.target.files[0]));
 elements.apiKey.addEventListener("input", updateUi);
 elements.threshold.addEventListener("input", updateUi);

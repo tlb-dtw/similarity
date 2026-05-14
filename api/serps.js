@@ -79,7 +79,7 @@ async function fetchSerp(apiKey, input, options) {
 }
 
 async function fetchSerpsInBatches(apiKey, keywords, options) {
-  const concurrency = options.concurrency || 5;
+  const concurrency = options.concurrency || 3;
   const results = [];
   let cursor = 0;
 
@@ -108,79 +108,6 @@ async function fetchSerpsInBatches(apiKey, keywords, options) {
   return results.sort((a, b) => (order.get(a.keyword) || 0) - (order.get(b.keyword) || 0));
 }
 
-function sharedUrlCount(a, b) {
-  const aUrls = new Set(a.serp.map((result) => result.normalizedUrl));
-  return b.serp.reduce(
-    (count, result) => count + (aUrls.has(result.normalizedUrl) ? 1 : 0),
-    0
-  );
-}
-
-function buildSeoClusters(serps, threshold, topN) {
-  const candidates = [...serps]
-    .filter((item) => item.serp.length > 0)
-    .sort((a, b) => b.volume - a.volume || a.keyword.localeCompare(b.keyword));
-
-  const assigned = new Set();
-  const clusters = [];
-
-  for (const main of candidates) {
-    if (assigned.has(main.keyword)) continue;
-
-    const secondaryKeywords = [];
-
-    for (const candidate of candidates) {
-      if (candidate.keyword === main.keyword || assigned.has(candidate.keyword)) continue;
-
-      const sharedUrls = sharedUrlCount(main, candidate);
-      const similarity = sharedUrls / topN;
-
-      if (similarity >= threshold) {
-        secondaryKeywords.push({
-          keyword: candidate.keyword,
-          volume: candidate.volume,
-          similarity,
-          sharedUrls
-        });
-      }
-    }
-
-    const keywords = [
-      {
-        keyword: main.keyword,
-        volume: main.volume,
-        similarity: 1,
-        sharedUrls: topN
-      },
-      ...secondaryKeywords.sort(
-        (a, b) =>
-          b.similarity - a.similarity ||
-          b.volume - a.volume ||
-          a.keyword.localeCompare(b.keyword)
-      )
-    ];
-
-    for (const keyword of keywords) {
-      assigned.add(keyword.keyword);
-    }
-
-    clusters.push({
-      mainKeyword: main.keyword,
-      mainVolume: main.volume,
-      keywordCount: keywords.length,
-      totalVolume: keywords.reduce((sum, keyword) => sum + keyword.volume, 0),
-      keywords
-    });
-  }
-
-  return clusters.sort(
-    (a, b) =>
-      b.totalVolume - a.totalVolume ||
-      b.mainVolume - a.mainVolume ||
-      a.mainKeyword.localeCompare(b.mainKeyword)
-  );
-}
-
 module.exports = async function handler(request, response) {
   if (request.method !== "POST") {
     response.status(405).json({ message: "Méthode non autorisée." });
@@ -190,24 +117,7 @@ module.exports = async function handler(request, response) {
   try {
     const body = request.body || {};
     const apiKey = String(body.apiKey || "").trim();
-    const threshold = Number(body.threshold);
     const topN = Number(body.topN || 10);
-
-    if (!apiKey) {
-      response.status(400).json({ message: "Clé API Serper manquante." });
-      return;
-    }
-
-    if (!Number.isFinite(threshold) || threshold < 0.1 || threshold > 1) {
-      response.status(400).json({ message: "Le seuil doit être compris entre 10% et 100%." });
-      return;
-    }
-
-    if (!Number.isFinite(topN) || topN < 1 || topN > 10) {
-      response.status(400).json({ message: "Le nombre de résultats doit être compris entre 1 et 10." });
-      return;
-    }
-
     const keywords = (body.keywords || [])
       .map((item) => ({
         keyword: cleanKeyword(item.keyword),
@@ -215,8 +125,18 @@ module.exports = async function handler(request, response) {
       }))
       .filter((item) => item.keyword);
 
+    if (!apiKey) {
+      response.status(400).json({ message: "Clé API Serper manquante." });
+      return;
+    }
+
     if (keywords.length === 0) {
       response.status(400).json({ message: "Aucun mot-clé valide." });
+      return;
+    }
+
+    if (!Number.isFinite(topN) || topN < 1 || topN > 10) {
+      response.status(400).json({ message: "Le nombre de résultats doit être compris entre 1 et 10." });
       return;
     }
 
@@ -229,7 +149,7 @@ module.exports = async function handler(request, response) {
     });
 
     response.status(200).json({
-      clusters: buildSeoClusters(serps, threshold, topN),
+      serps,
       serpCount: serps.filter((item) => item.serp.length > 0).length,
       errors: serps
         .filter((item) => item.error)
@@ -237,7 +157,7 @@ module.exports = async function handler(request, response) {
     });
   } catch (error) {
     response.status(500).json({
-      message: error instanceof Error ? error.message : "Erreur pendant l'analyse SERP."
+      message: error instanceof Error ? error.message : "Erreur pendant la récupération SERP."
     });
   }
 };
