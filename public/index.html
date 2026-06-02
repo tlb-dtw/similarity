@@ -49,16 +49,81 @@
             <span class="hint">Par défaut 40% : au moins 4 URLs communes dans le top 10.</span>
           </div>
 
-          <div class="field">
-            <label>Pays et langue</label>
-            <select disabled>
-              <option>Google France / français / top 10</option>
-            </select>
+          <div class="config-grid">
+            <div class="field">
+              <label for="searchType">Type de recherche</label>
+              <select id="searchType">
+                <option value="search">🔎 Search</option>
+                <option value="images">📷 Images</option>
+                <option value="videos">🎥 Videos</option>
+                <option value="places">📍 Places</option>
+                <option value="maps">🗺️ Maps</option>
+                <option value="reviews">⭐ Reviews</option>
+                <option value="news">📰 News</option>
+                <option value="shopping">🛍️ Shopping</option>
+                <option value="scholar">🎓 Scholar</option>
+                <option value="patents">🔬 Patents</option>
+                <option value="autocomplete">🤔 Autocomplete</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="country">Pays</label>
+              <select id="country">
+                <option value="fr">France</option>
+                <option value="us">États-Unis</option>
+                <option value="gb">Royaume-Uni</option>
+                <option value="ca">Canada</option>
+                <option value="be">Belgique</option>
+                <option value="ch">Suisse</option>
+                <option value="de">Allemagne</option>
+                <option value="es">Espagne</option>
+                <option value="it">Italie</option>
+                <option value="nl">Pays-Bas</option>
+                <option value="br">Brésil</option>
+                <option value="mx">Mexique</option>
+                <option value="ar">Argentine</option>
+                <option value="in">Inde</option>
+                <option value="id">Indonésie</option>
+                <option value="jp">Japon</option>
+                <option value="kr">Corée du Sud</option>
+                <option value="au">Australie</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="language">Langue</label>
+              <select id="language">
+                <option value="fr">Français</option>
+                <option value="en">Anglais</option>
+                <option value="es">Espagnol</option>
+                <option value="de">Allemand</option>
+                <option value="it">Italien</option>
+                <option value="pt">Portugais</option>
+                <option value="ar">Arabe</option>
+                <option value="hi">Hindi</option>
+                <option value="id">Indonésien</option>
+                <option value="ja">Japonais</option>
+                <option value="ko">Coréen</option>
+                <option value="zh-cn">Chinois simplifié</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="topN">Résultats</label>
+              <select id="topN">
+                <option value="10">Top 10</option>
+                <option value="20">Top 20</option>
+                <option value="30">Top 30</option>
+                <option value="50">Top 50</option>
+              </select>
+            </div>
           </div>
 
           <div class="actions">
             <button id="runButton" class="primary" disabled>Lancer l'analyse</button>
             <button id="exportButton" class="secondary" disabled>Export CSV</button>
+            <button id="exportSerpButton" class="secondary" disabled>Export SERP</button>
           </div>
 
           <p id="fileInfo" class="hint"></p>

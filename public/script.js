@@ -11,8 +11,13 @@ const elements = {
   csv: document.querySelector("#csv"),
   threshold: document.querySelector("#threshold"),
   thresholdValue: document.querySelector("#thresholdValue"),
+  searchType: document.querySelector("#searchType"),
+  country: document.querySelector("#country"),
+  language: document.querySelector("#language"),
+  topN: document.querySelector("#topN"),
   runButton: document.querySelector("#runButton"),
   exportButton: document.querySelector("#exportButton"),
+  exportSerpButton: document.querySelector("#exportSerpButton"),
   fileInfo: document.querySelector("#fileInfo"),
   status: document.querySelector("#status"),
   error: document.querySelector("#error"),
@@ -123,14 +128,7 @@ function findColumn(headers, hints) {
   return partial ? partial.original : headers[0];
 }
 
-function unparseCsv(rows) {
-  const headers = [
-    "Mot-clÃ© principal",
-    "Volume",
-    "Nombre de mots-clÃ©s",
-    "Volume cumulÃ©",
-    "Mots-clÃ©s du cluster"
-  ];
+function unparseCsvWithHeaders(headers, rows) {
   const lines = [headers, ...rows].map((row) =>
     row
       .map((value) => {
@@ -140,6 +138,19 @@ function unparseCsv(rows) {
       .join(";")
   );
   return lines.join("\n");
+}
+
+function unparseCsv(rows) {
+  return unparseCsvWithHeaders(
+    [
+    "Mot-clÃ© principal",
+    "Volume",
+    "Nombre de mots-clÃ©s",
+    "Volume cumulÃ©",
+    "Mots-clÃ©s du cluster"
+    ],
+    rows
+  );
 }
 
 function clustersToCsv(clusters) {
@@ -160,6 +171,51 @@ function clustersToCsv(clusters) {
   );
 }
 
+function serpsToCsv(serps) {
+  const rows = [];
+
+  for (const keywordSerp of serps) {
+    for (const result of keywordSerp.serp) {
+      rows.push([
+        keywordSerp.searchType || "",
+        keywordSerp.country || "",
+        keywordSerp.language || "",
+        keywordSerp.keyword,
+        keywordSerp.volume,
+        result.position,
+        result.title,
+        result.link,
+        result.normalizedUrl,
+        result.snippet || "",
+        result.source || "",
+        result.date || "",
+        result.rating || "",
+        result.price || ""
+      ]);
+    }
+  }
+
+  return unparseCsvWithHeaders(
+    [
+      "Type",
+      "Pays",
+      "Langue",
+      "Mot-clé",
+      "Volume",
+      "Position",
+      "Titre",
+      "URL",
+      "URL normalisée",
+      "Snippet",
+      "Source",
+      "Date",
+      "Note",
+      "Prix"
+    ],
+    rows
+  );
+}
+
 function downloadCsv() {
   if (!state.result) return;
   const blob = new Blob([`\uFEFF${clustersToCsv(state.result.clusters)}`], {
@@ -169,6 +225,19 @@ function downloadCsv() {
   const link = document.createElement("a");
   link.href = url;
   link.download = "clusters-similarite-serp.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadSerpCsv() {
+  if (!state.result || !state.result.serps) return;
+  const blob = new Blob([`\uFEFF${serpsToCsv(state.result.serps)}`], {
+    type: "text/csv;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "resultats-serper-serp.csv";
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -260,6 +329,8 @@ function updateUi() {
   elements.runButton.disabled =
     state.loading || !elements.apiKey.value.trim() || state.keywords.length === 0;
   elements.exportButton.disabled = !state.result || state.result.clusters.length === 0;
+  elements.exportSerpButton.disabled =
+    !state.result || !state.result.serps || state.result.serpCount === 0;
 
   const progress = state.loading
     ? state.progress
@@ -390,7 +461,7 @@ async function runAnalysis() {
   state.progress = 5;
   state.progressText = "Preparation de l'analyse...";
   elements.error.textContent = "";
-  elements.status.textContent = "Recuperation des SERP Google FR via Serper...";
+  elements.status.textContent = "Recuperation des resultats Serper...";
   updateUi();
 
   try {
@@ -398,6 +469,10 @@ async function runAnalysis() {
     const allSerps = [];
     const allErrors = [];
     const totalBatches = Math.ceil(state.keywords.length / batchSize);
+    const topN = Number(elements.topN.value);
+    const searchType = elements.searchType.value;
+    const country = elements.country.value;
+    const language = elements.language.value;
 
     for (let index = 0; index < totalBatches; index += 1) {
       const start = index * batchSize;
@@ -415,9 +490,10 @@ async function runAnalysis() {
         body: JSON.stringify({
           apiKey: elements.apiKey.value,
           keywords: batch,
-          gl: "fr",
-          hl: "fr",
-          topN: 10
+          searchType,
+          gl: country,
+          hl: language,
+          topN
         })
       });
       const payload = await response.json();
@@ -435,9 +511,14 @@ async function runAnalysis() {
     updateUi();
 
     state.result = {
-      clusters: buildSeoClusters(allSerps, Number(elements.threshold.value) / 100, 10),
+      clusters: buildSeoClusters(allSerps, Number(elements.threshold.value) / 100, topN),
       serpCount: allSerps.filter((item) => item.serp.length > 0).length,
-      errors: allErrors
+      errors: allErrors,
+      serps: allSerps,
+      searchType,
+      country,
+      language,
+      topN
     };
     elements.status.textContent = "Analyse terminee.";
   } catch (error) {
@@ -454,7 +535,12 @@ async function runAnalysis() {
 elements.csv.addEventListener("change", (event) => handleFile(event.target.files[0]));
 elements.apiKey.addEventListener("input", updateUi);
 elements.threshold.addEventListener("input", updateUi);
+elements.searchType.addEventListener("change", updateUi);
+elements.country.addEventListener("change", updateUi);
+elements.language.addEventListener("change", updateUi);
+elements.topN.addEventListener("change", updateUi);
 elements.runButton.addEventListener("click", runAnalysis);
 elements.exportButton.addEventListener("click", downloadCsv);
+elements.exportSerpButton.addEventListener("click", downloadSerpCsv);
 
 updateUi();

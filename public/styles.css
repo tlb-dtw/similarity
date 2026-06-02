@@ -83,6 +83,17 @@ button {
   margin-bottom: 18px;
 }
 
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.config-grid .field {
+  margin-bottom: 0;
+}
+
 .field label {
   color: #2b3542;
   font-size: 14px;
@@ -152,6 +163,11 @@ button {
 .secondary {
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+
+#exportSerpButton {
+  background: #eef1f4;
+  color: #334050;
 }
 
 .results {
@@ -335,6 +351,10 @@ td {
   }
 
   .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .config-grid {
     grid-template-columns: 1fr;
   }
 

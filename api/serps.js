@@ -1,5 +1,18 @@
-const SERPER_ENDPOINT = "https://google.serper.dev/search";
+const SERPER_BASE_URL = "https://google.serper.dev";
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const SEARCH_TYPES = new Set([
+  "search",
+  "images",
+  "videos",
+  "places",
+  "maps",
+  "reviews",
+  "news",
+  "shopping",
+  "scholar",
+  "patents",
+  "autocomplete"
+]);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,11 +44,81 @@ function cleanVolume(value) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
 }
 
+function cleanSearchType(value) {
+  const searchType = String(value || "search").trim().toLowerCase();
+  return SEARCH_TYPES.has(searchType) ? searchType : "search";
+}
+
+function getEndpoint(searchType) {
+  return `${SERPER_BASE_URL}/${cleanSearchType(searchType)}`;
+}
+
+function findResultsArray(payload, searchType) {
+  const preferredKeys = {
+    search: ["organic"],
+    images: ["images"],
+    videos: ["videos"],
+    places: ["places"],
+    maps: ["places", "maps"],
+    reviews: ["reviews"],
+    news: ["news"],
+    shopping: ["shopping"],
+    scholar: ["organic", "scholarlyArticles"],
+    patents: ["organic", "patents"],
+    autocomplete: ["suggestions"]
+  };
+
+  for (const key of preferredKeys[searchType] || ["organic"]) {
+    if (Array.isArray(payload[key])) return payload[key];
+  }
+
+  const fallback = Object.values(payload).find((value) => Array.isArray(value));
+  return Array.isArray(fallback) ? fallback : [];
+}
+
+function valueFrom(result, keys) {
+  for (const key of keys) {
+    if (result[key] !== undefined && result[key] !== null && result[key] !== "") {
+      return result[key];
+    }
+  }
+  return "";
+}
+
+function normalizeResult(result, index, searchType) {
+  const link = String(
+    valueFrom(result, [
+      "link",
+      "url",
+      "sourceUrl",
+      "imageUrl",
+      "thumbnailUrl",
+      "website",
+      "pdfUrl"
+    ])
+  );
+  const title = String(valueFrom(result, ["title", "name", "query", "suggestion"]));
+
+  return {
+    position: Number(result.position || index + 1),
+    title,
+    link,
+    normalizedUrl: normalizeUrl(link || title),
+    snippet: String(valueFrom(result, ["snippet", "description", "address"])),
+    source: String(valueFrom(result, ["source", "domain", "publisher", "seller"])),
+    date: String(valueFrom(result, ["date", "publishedDate", "year"])),
+    rating: String(valueFrom(result, ["rating", "reviews"])),
+    price: String(valueFrom(result, ["price", "extractedPrice"])),
+    searchType
+  };
+}
+
 async function fetchSerp(apiKey, input, options) {
   const maxAttempts = options.maxAttempts || 3;
+  const searchType = cleanSearchType(options.searchType);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const response = await fetch(SERPER_ENDPOINT, {
+    const response = await fetch(getEndpoint(searchType), {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
@@ -62,17 +145,18 @@ async function fetchSerp(apiKey, input, options) {
     }
 
     const payload = await response.json();
-    const serp = (payload.organic || [])
-      .filter((result) => result.link)
+    const serp = findResultsArray(payload, searchType)
       .slice(0, options.topN)
-      .map((result, index) => ({
-        position: result.position || index + 1,
-        title: result.title || "",
-        link: result.link || "",
-        normalizedUrl: normalizeUrl(result.link || "")
-      }));
+      .map((result, index) => normalizeResult(result, index, searchType))
+      .filter((result) => result.link || result.title);
 
-    return { ...input, serp };
+    return {
+      ...input,
+      searchType,
+      country: options.gl,
+      language: options.hl,
+      serp
+    };
   }
 
   throw new Error("Serper: échec après plusieurs tentatives.");
@@ -118,6 +202,7 @@ module.exports = async function handler(request, response) {
     const body = request.body || {};
     const apiKey = String(body.apiKey || "").trim();
     const topN = Number(body.topN || 10);
+    const searchType = cleanSearchType(body.searchType);
     const keywords = (body.keywords || [])
       .map((item) => ({
         keyword: cleanKeyword(item.keyword),
@@ -135,12 +220,13 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    if (!Number.isFinite(topN) || topN < 1 || topN > 10) {
-      response.status(400).json({ message: "Le nombre de résultats doit être compris entre 1 et 10." });
+    if (!Number.isFinite(topN) || topN < 1 || topN > 100) {
+      response.status(400).json({ message: "Le nombre de résultats doit être compris entre 1 et 100." });
       return;
     }
 
     const serps = await fetchSerpsInBatches(apiKey, keywords, {
+      searchType,
       gl: body.gl || "fr",
       hl: body.hl || "fr",
       topN,
